@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { HudCard } from "../GameUI";
 import { ACHIEVEMENTS, QUESTS, SHOP_ITEMS, LEADERBOARD } from "../gameData";
+import { useRobokassa, openPaymentPage, isValidEmail } from "@/components/extensions/robokassa/useRobokassa";
+import func2url from "../../../backend/func2url.json";
 
 // ─── AchievementsPage ─────────────────────────────────────────────────────────
 
@@ -100,12 +102,120 @@ export function QuestsPage() {
   );
 }
 
+// ─── ShopPayModal ─────────────────────────────────────────────────────────────
+
+const SHOP_REAL_PRICES: Record<number, number> = { 3: 199, 4: 499, 6: 149 };
+
+function ShopPayModal({ item, onClose, onPaid }: {
+  item: typeof SHOP_ITEMS[number];
+  onClose: () => void;
+  onPaid: (id: number) => void;
+}) {
+  const [form, setForm] = useState({ name: "", email: "" });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const realPrice = SHOP_REAL_PRICES[item.id];
+
+  const { createPayment, isLoading } = useRobokassa({
+    apiUrl: func2url["robokassa-robokassa"],
+    onError: (e) => setErrors({ submit: e.message }),
+  });
+
+  function validate() {
+    const e: Record<string, string> = {};
+    if (!form.name.trim()) e.name = "Введите имя";
+    if (!isValidEmail(form.email)) e.email = "Введите корректный email";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  }
+
+  async function handlePay() {
+    if (!validate()) return;
+    const data = await createPayment({
+      amount: realPrice,
+      userName: form.name,
+      userEmail: form.email,
+      userPhone: "79000000000",
+      orderComment: `Покупка: ${item.name}`,
+      cartItems: [{ id: String(item.id), name: item.name, price: realPrice, quantity: 1 }],
+      successUrl: window.location.href,
+      failUrl: window.location.href,
+    });
+    onPaid(item.id);
+    openPaymentPage(data.payment_url);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-lg animate-slide-up" onClick={e => e.stopPropagation()}>
+        <HudCard className="p-5 rounded-b-none space-y-4" glowColor="yellow">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">{item.icon}</span>
+              <div>
+                <p className="font-rajdhani font-bold text-sm text-white">{item.name}</p>
+                <p className="font-orbitron text-xs font-black" style={{ color: item.color }}>{realPrice} ₽</p>
+              </div>
+            </div>
+            <button onClick={onClose} className="w-7 h-7 rounded-lg bg-white/10 text-slate-400 hover:text-white flex items-center justify-center text-sm transition-colors">✕</button>
+          </div>
+
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="font-rajdhani text-xs text-slate-400 uppercase tracking-wider">Имя</label>
+              <input type="text" placeholder="Иван Иванов" value={form.name}
+                onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+                className="w-full bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-white font-rajdhani text-sm placeholder-slate-600 focus:outline-none focus:border-neon-purple/60 transition-colors" />
+              {errors.name && <p className="text-xs text-red-400 font-rajdhani">{errors.name}</p>}
+            </div>
+            <div className="space-y-1">
+              <label className="font-rajdhani text-xs text-slate-400 uppercase tracking-wider">Email</label>
+              <input type="email" placeholder="ivan@example.com" value={form.email}
+                onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+                className="w-full bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-white font-rajdhani text-sm placeholder-slate-600 focus:outline-none focus:border-neon-purple/60 transition-colors" />
+              {errors.email && <p className="text-xs text-red-400 font-rajdhani">{errors.email}</p>}
+            </div>
+            {errors.submit && <p className="text-xs text-red-400 font-rajdhani">{errors.submit}</p>}
+          </div>
+
+          <button onClick={handlePay} disabled={isLoading}
+            className="w-full py-3 rounded-xl font-orbitron font-bold text-sm text-white flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-60"
+            style={{ background: `linear-gradient(135deg, ${item.color}, #a855f7)`, boxShadow: `0 0 16px ${item.color}40` }}>
+            {isLoading
+              ? <><div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />Создаём заказ...</>
+              : <>🔐 Оплатить {realPrice} ₽</>}
+          </button>
+          <p className="text-center font-rajdhani text-xs text-slate-500">Оплата через Robokassa · Безопасное соединение</p>
+        </HudCard>
+      </div>
+    </div>
+  );
+}
+
 // ─── ShopPage ─────────────────────────────────────────────────────────────────
 
 export function ShopPage({ coins }: { coins: number }) {
   const [owned, setOwned] = useState([2]);
+  const [payingItem, setPayingItem] = useState<typeof SHOP_ITEMS[number] | null>(null);
+
+  function handleBuy(item: typeof SHOP_ITEMS[number]) {
+    if (owned.includes(item.id)) return;
+    if (SHOP_REAL_PRICES[item.id]) {
+      setPayingItem(item);
+    } else {
+      setOwned(p => [...p, item.id]);
+    }
+  }
+
   return (
     <div className="space-y-4 animate-fade-in">
+      {payingItem && (
+        <ShopPayModal
+          item={payingItem}
+          onClose={() => setPayingItem(null)}
+          onPaid={(id) => { setOwned(p => [...p, id]); setPayingItem(null); }}
+        />
+      )}
+
       <div className="flex items-center justify-between">
         <h2 className="font-orbitron text-lg font-black text-white">МАГАЗИН</h2>
         <div className="flex items-center gap-1.5 bg-neon-yellow/10 border border-neon-yellow/25 rounded-full px-3 py-1.5">
@@ -117,19 +227,23 @@ export function ShopPage({ coins }: { coins: number }) {
       <div className="grid grid-cols-2 gap-3">
         {SHOP_ITEMS.map(item => {
           const isOwned = owned.includes(item.id);
+          const realPrice = SHOP_REAL_PRICES[item.id];
           return (
             <HudCard key={item.id} className="p-4 hover:scale-[1.02] transition-all duration-200" glowColor="yellow">
               <div className="text-3xl mb-2 text-center">{item.icon}</div>
               <h3 className="font-rajdhani font-bold text-sm text-white text-center leading-tight">{item.name}</h3>
               <p className="text-[11px] text-slate-400 font-rajdhani text-center mt-1 leading-tight">{item.desc}</p>
+              {realPrice && !isOwned && (
+                <p className="text-center font-orbitron text-[10px] text-neon-cyan mt-1">{realPrice} ₽</p>
+              )}
               <button
-                onClick={() => !isOwned && setOwned(p => [...p, item.id])}
+                onClick={() => handleBuy(item)}
                 className="w-full mt-3 py-1.5 rounded-lg text-xs font-orbitron font-bold transition-all duration-200"
                 style={isOwned
                   ? { background: 'rgba(255,255,255,0.04)', color: '#64748b', border: '1px solid rgba(255,255,255,0.08)' }
                   : { background: `${item.color}18`, color: item.color, border: `1px solid ${item.color}35`, boxShadow: `0 0 8px ${item.color}18` }
                 }>
-                {isOwned ? '✓ КУПЛЕНО' : `🪙 ${item.price}`}
+                {isOwned ? '✓ КУПЛЕНО' : realPrice ? `💳 ${realPrice} ₽` : `🪙 ${item.price}`}
               </button>
             </HudCard>
           );

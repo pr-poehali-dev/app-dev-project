@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { XpFloater, NavItem } from "@/game/GameUI";
-import { HomePage, HabitsPage, ProfilePage, AchievementsPage, StatsPage, QuestsPage, ShopPage, LeaderboardPage } from "@/game/GamePages";
+import { HomePage, HabitsPage, ProfilePage, AchievementsPage, StatsPage, QuestsPage, ShopPage, LeaderboardPage, SubscriptionPage } from "@/game/GamePages";
 import { INITIAL_HABITS, PAGES } from "@/game/gameData";
 
 export default function Index() {
@@ -64,6 +64,7 @@ export default function Index() {
         {page === "quests" && <QuestsPage />}
         {page === "shop" && <ShopPage coins={coins} />}
         {page === "leaderboard" && <LeaderboardPage />}
+        {page === "subscription" && <SubscriptionPage />}
       </main>
 
       {/* Bottom navigation */}

@@ -64,6 +64,7 @@ export const PAGES = [
   { id: "achievements", icon: "🏆", label: "Ачивки" },
   { id: "leaderboard", icon: "👑", label: "Лидеры" },
   { id: "shop", icon: "🛒", label: "Магазин" },
+  { id: "subscription", icon: "💎", label: "Pro" },
   { id: "profile", icon: "👤", label: "Профиль" },
 ];
 
